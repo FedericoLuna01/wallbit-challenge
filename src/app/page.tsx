@@ -16,43 +16,46 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Product, ProductItem } from "@/types"
+import { Discount, Product, ProductItem } from "@/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DataTable } from "@/components/data-table"
-import { columns } from "@/components/column"
+import { getColumns } from "@/components/column"
 import { useEffect, useState } from "react"
-import { Label } from "@/components/ui/label"
+import { formatPrice } from "@/lib/utils"
+
+const DISCOUNTS_CODES: Discount[] = [
+  {
+    code: 'fede',
+    discount: 10,
+  },
+  {
+    code: 'tuki',
+    discount: 100,
+  },
+  {
+    code: 'goncy',
+    discount: 30,
+  }
+]
 
 const formSchema = z.object({
   quantity: z.coerce.number(),
   productId: z.coerce.number(),
 })
 
+const discountFormSchema = z.object({
+  code: z.string(),
+})
+
 export default function Home() {
   const [cartDate, setCartDate] = useState<Date>()
-  const [products, setProducts] = useState<ProductItem[]>([
-    // {
-    //   "id": 1,
-    //   "title": "Fjallraven - Foldsack No. 1 Backpack, Fits 15 Laptops",
-    //   "price": 109.95,
-    //   "description": "Your perfect pack for everyday use and walks in the forest. Stash your laptop (up to 15 inches) in the padded sleeve, your everyday",
-    //   "category": "men's clothing",
-    //   "image": "https://fakestoreapi.com/img/81fPKd-2AYL._AC_SL1500_.jpg",
-    //   "rating": {
-    //     "rate": 3.9,
-    //     "count": 120
-    //   },
-    //   quantity: 3
-    // }
-  ])
+  const [products, setProducts] = useState<ProductItem[]>([])
+  const [subtotal, setSubtotal] = useState<number>(0)
+  const [totalPrice, setTotalPrice] = useState<number>(0)
+  const [totalProducts, setTotalProducts] = useState<number>(0)
+  const [discount, setDiscount] = useState<Discount | undefined>()
 
   const { toast } = useToast()
-
-  const getTotalProducts = (products: ProductItem[]): number => {
-    return products.reduce((acc, product) => acc + product.quantity, 0)
-  }
-
-  const total = getTotalProducts(products)
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -62,15 +65,29 @@ export default function Home() {
     },
   })
 
-  const getProduct = async (product: number): Promise<Product | undefined> => {
-    try {
-      const response = await fetch(`https://fakestoreapi.com/products/${product}`)
-      const data = await response.json()
-      return data
-    } catch (error) {
-      console.log(error)
-      return undefined
+  const discountForm = useForm<z.infer<typeof discountFormSchema>>({
+    resolver: zodResolver(discountFormSchema),
+    defaultValues: {
+      code: "",
+    },
+  })
+
+  function onSubmitDiscount(values: z.infer<typeof discountFormSchema>) {
+    const discount = DISCOUNTS_CODES.find((discount) => discount.code === values.code)
+
+    if (!discount) {
+      return discountForm.setError('code', {
+        message: 'Código de descuento inválido',
+      })
     }
+
+    setDiscount(discount)
+
+    toast({
+      title: 'Descuento aplicado',
+      description: `Descuento del ${discount.discount}% aplicado correctamente.`,
+      variant: 'success'
+    })
   }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -109,6 +126,38 @@ export default function Home() {
     localStorage.setItem('products', JSON.stringify(updatedProducts));
   }
 
+  const getTotalProducts = (products: ProductItem[]): number => {
+    return products.reduce((acc, product) => acc + product.quantity, 0)
+  }
+
+  const getSubtotal = (products: ProductItem[]): number => {
+    return products.reduce((acc, product) => acc + product.price * product.quantity, 0)
+  }
+
+  const getTotalPrice = (subtotal: number, discount: Discount | undefined): number => {
+    if (discount) {
+      return subtotal - (subtotal * discount.discount / 100)
+    }
+    return subtotal
+  }
+
+  const getProduct = async (product: number): Promise<Product | undefined> => {
+    try {
+      const response = await fetch(`https://fakestoreapi.com/products/${product}`)
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.log(error)
+      return undefined
+    }
+  }
+
+  useEffect(() => {
+    setSubtotal(getSubtotal(products))
+    setTotalProducts(getTotalProducts(products))
+    setTotalPrice(getTotalPrice(subtotal, discount))
+  }, [products, discount, subtotal])
+
   useEffect(() => {
     const savedProducts = localStorage.getItem('products');
     const cartDate = localStorage.getItem('cartDate');
@@ -122,16 +171,43 @@ export default function Home() {
     }
   }, []);
 
+  const removeProduct = (productId: number) => {
+    const updatedProducts = products.filter((product) => product.id !== productId);
+    setProducts(updatedProducts);
+    localStorage.setItem('products', JSON.stringify(updatedProducts));
+    toast({
+      title: 'Producto eliminado',
+      description: 'El producto ha sido eliminado del carrito.',
+      variant: 'success'
+    });
+  }
+
+  const updateQuantity = (productId: number, newQuantity: number) => {
+    const updatedProducts = products.map(product => {
+      if (product.id === productId) {
+        return { ...product, quantity: newQuantity }
+      }
+      return product
+    })
+    setProducts(updatedProducts)
+    localStorage.setItem('products', JSON.stringify(updatedProducts))
+  }
+
+  const columns = getColumns(removeProduct, updateQuantity)
+
   return (
     <main>
-      <div className="max-w-5xl mx-auto mt-8">
+      <div className="max-w-5xl mx-auto mt-8 px-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">Agregar producto</CardTitle>
           </CardHeader>
           <CardContent>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-3 gap-x-4 items-center">
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-center"
+              >
                 <FormField
                   control={form.control}
                   name="quantity"
@@ -205,23 +281,44 @@ export default function Home() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <DataTable columns={columns} data={products} />
-            <div className="flex justify-between mt-4">
+            <DataTable
+              columns={columns}
+              data={products}
+              onRemove={removeProduct}
+              onUpdateQuantity={updateQuantity}
+            />
+            <div className="flex flex-col md:flex-row justify-between mt-4">
               <div>
-                <p>Cantidad de productos: {total}</p>
+                <p className="text-xl">Cantidad de productos: {totalProducts}</p>
               </div>
-              <div>
-                <p>Subtotal: 2</p>
-                <div>
-                  <Label>Código de descuento</Label>
-                  <Input
-                    type="number"
-                  />
-                  <Button>
-                    Aplicar
-                  </Button>
-                </div>
-                <p>Total: 2</p>
+              <div
+                className="flex flex-col gap-y-4"
+              >
+                <p className="text-xl">Subtotal: {formatPrice(subtotal)}</p>
+                <Form {...discountForm}>
+                  <form
+                    onSubmit={discountForm.handleSubmit(onSubmitDiscount)}
+                    className="flex flex-col gap-y-2">
+                    <FormField
+                      control={discountForm.control}
+                      name="code"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Código de descuento</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Tu código" {...field} />
+                          </FormControl>
+                          <FormDescription>
+                            Podes obtener un descuento con un código válido.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button type="submit">Aplicar</Button>
+                  </form>
+                </Form>
+                <p className="text-2xl font-semibold">Total: {formatPrice(totalPrice)}</p>
               </div>
             </div>
           </CardContent>

@@ -19,11 +19,15 @@ import {
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
+  onRemove?: (productId: number) => void
+  onUpdateQuantity?: (productId: number, quantity: number) => void
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
+  onRemove,
+  onUpdateQuantity
 }: DataTableProps<TData, TValue>) {
   const table = useReactTable({
     data,

@@ -31,7 +31,7 @@ export default function RootLayout({
         <Toaster />
         <header className="border-b border-b-border py-4">
           <div
-            className="max-w-5xl mx-auto"
+            className="max-w-5xl mx-auto px-4"
           >
             <h1 className="text-4xl font-bold">Tienda wallbit</h1>
             {/* <ModeToggle /> */}

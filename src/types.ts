@@ -14,3 +14,8 @@ export interface Product {
 export interface ProductItem extends Product {
   quantity: number
 }
+
+export interface Discount {
+  code: string
+  discount: number
+}

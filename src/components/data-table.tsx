@@ -15,19 +15,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Skeleton } from "./ui/skeleton"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
   onRemove?: (productId: number) => void
-  onUpdateQuantity?: (productId: number, quantity: number) => void
+  onUpdateQuantity?: (productId: number, quantity: number) => void,
+  isLoading: boolean
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
   onRemove,
-  onUpdateQuantity
+  onUpdateQuantity,
+  isLoading
 }: DataTableProps<TData, TValue>) {
   const table = useReactTable({
     data,
@@ -36,8 +39,8 @@ export function DataTable<TData, TValue>({
   })
 
   return (
-    <div className="rounded-md border">
-      <Table>
+    <div className="rounded-md border max-w-[calc(100vw-2em)] sm:w-full overflow-auto">
+      <Table className="">
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
@@ -58,18 +61,27 @@ export function DataTable<TData, TValue>({
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() && "selected"}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            <>
+              {table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="h-16">
+                    <Skeleton className="h-16 w-full" />
                   </TableCell>
-                ))}
-              </TableRow>
-            ))
+                </TableRow>
+              )}
+            </>
           ) : (
             <TableRow>
               <TableCell colSpan={columns.length} className="h-24 text-center">

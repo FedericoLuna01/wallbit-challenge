@@ -25,16 +25,20 @@ import { formatPrice } from "@/lib/utils"
 
 const DISCOUNTS_CODES: Discount[] = [
   {
-    code: 'fede',
+    code: 'RAZER',
     discount: 10,
   },
   {
-    code: 'tuki',
+    code: 'TUKI',
     discount: 100,
   },
   {
-    code: 'goncy',
+    code: 'GONCY',
     discount: 30,
+  },
+  {
+    code: 'WALLBIT',
+    discount: 50,
   }
 ]
 
@@ -54,6 +58,7 @@ export default function Home() {
   const [totalPrice, setTotalPrice] = useState<number>(0)
   const [totalProducts, setTotalProducts] = useState<number>(0)
   const [discount, setDiscount] = useState<Discount | undefined>()
+  const [isLoading, setIsLoading] = useState<boolean>(false)
 
   const { toast } = useToast()
 
@@ -91,39 +96,43 @@ export default function Home() {
   }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    // Chequeo si el producto ya está en el carrito
-    const productExits = products.some((product) => product.id === values.productId)
-    if (productExits) {
+    setIsLoading(true)
+    try {
+      const productExits = products.some((product) => product.id === values.productId)
+      if (productExits) {
+        toast({
+          title: 'El producto ya está en el carrito',
+          description: 'Puedes cambiar la cantidad desde el carrito.',
+          variant: 'alert',
+        })
+        return
+      }
+
+      const product = await getProduct(values.productId)
+      if (!product) {
+        return toast({
+          title: 'Producto no encontrado',
+          description: 'El producto no ha sido encontrado.',
+          variant: 'destructive',
+        })
+      }
+
+      if (!cartDate) {
+        setCartDate(new Date())
+        localStorage.setItem('cartDate', new Date().toISOString());
+      }
+
+      const updatedProducts = [...products, { ...product, quantity: values.quantity }];
+      setProducts(updatedProducts);
       toast({
-        title: 'El producto ya está en el carrito',
-        description: 'Puedes cambiar la cantidad desde el carrito.',
-        variant: 'alert',
+        title: 'Producto agregado',
+        description: 'El producto ha sido agregado correctamente.',
+        variant: 'success'
       })
-      return
+      localStorage.setItem('products', JSON.stringify(updatedProducts));
+    } finally {
+      setIsLoading(false)
     }
-
-    const product = await getProduct(values.productId)
-    if (!product) {
-      return toast({
-        title: 'Producto no encontrado',
-        description: 'El producto no ha sido encontrado.',
-        variant: 'destructive',
-      })
-    }
-
-    if (!cartDate) {
-      setCartDate(new Date())
-      localStorage.setItem('cartDate', new Date().toISOString());
-    }
-
-    const updatedProducts = [...products, { ...product, quantity: values.quantity }];
-    setProducts(updatedProducts);
-    toast({
-      title: 'Producto agregado',
-      description: 'El producto ha sido agregado correctamente.',
-      variant: 'success'
-    })
-    localStorage.setItem('products', JSON.stringify(updatedProducts));
   }
 
   const getTotalProducts = (products: ProductItem[]): number => {
@@ -156,7 +165,13 @@ export default function Home() {
     setSubtotal(getSubtotal(products))
     setTotalProducts(getTotalProducts(products))
     setTotalPrice(getTotalPrice(subtotal, discount))
-  }, [products, discount, subtotal])
+
+    if (products.length === 0 && cartDate) {
+      setCartDate(undefined)
+      localStorage.removeItem("cartDate")
+    }
+
+  }, [products, discount, subtotal, cartDate])
 
   useEffect(() => {
     const savedProducts = localStorage.getItem('products');
@@ -183,6 +198,13 @@ export default function Home() {
   }
 
   const updateQuantity = (productId: number, newQuantity: number) => {
+    if (newQuantity >= 100) {
+      return toast({
+        title: "Cantidad máxima",
+        description: "La cantidad máxima de productos es 100.",
+        variant: "alert",
+      })
+    }
     const updatedProducts = products.map(product => {
       if (product.id === productId) {
         return { ...product, quantity: newQuantity }
@@ -244,7 +266,9 @@ export default function Home() {
                     </FormItem>
                   )}
                 />
-                <Button type="submit">Agregar</Button>
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? "Agregando..." : "Agregar"}
+                </Button>
               </form>
             </Form>
           </CardContent>
@@ -260,8 +284,6 @@ export default function Home() {
                   <Button
                     onClick={() => {
                       localStorage.removeItem('products');
-                      localStorage.removeItem('cartDate');
-                      setCartDate(undefined);
                       setProducts([]);
                       toast({
                         title: 'Carrito vaciado',
@@ -286,15 +308,16 @@ export default function Home() {
               data={products}
               onRemove={removeProduct}
               onUpdateQuantity={updateQuantity}
+              isLoading={isLoading}
             />
             <div className="flex flex-col md:flex-row justify-between mt-4">
               <div>
                 <p className="text-xl">Cantidad de productos: {totalProducts}</p>
               </div>
               <div
-                className="flex flex-col gap-y-4"
+                className="flex flex-col gap-y-4 max-w-sm"
               >
-                <p className="text-xl">Subtotal: {formatPrice(subtotal)}</p>
+                <p className="text-xl mt-4 md:mt-0">Subtotal: {formatPrice(subtotal)}</p>
                 <Form {...discountForm}>
                   <form
                     onSubmit={discountForm.handleSubmit(onSubmitDiscount)}
@@ -318,6 +341,15 @@ export default function Home() {
                     <Button type="submit">Aplicar</Button>
                   </form>
                 </Form>
+                {
+                  discount && (
+                    <div
+                      className="border border-green-500 text-green-500 rounded-md p-2 text-sm"
+                    >
+                      Descuento aplicado: {discount.discount}% - {discount.code} ({formatPrice(subtotal * discount.discount / 100)})
+                    </div>
+                  )
+                }
                 <p className="text-2xl font-semibold">Total: {formatPrice(totalPrice)}</p>
               </div>
             </div>

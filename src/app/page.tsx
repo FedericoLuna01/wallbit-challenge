@@ -43,8 +43,8 @@ const DISCOUNTS_CODES: Discount[] = [
 ]
 
 const formSchema = z.object({
-  quantity: z.coerce.number(),
-  productId: z.coerce.number(),
+  quantity: z.coerce.number().min(1, "El numero debe ser mayor a 0"),
+  productId: z.coerce.number().min(1, "El numero debe ser mayor a 0"),
 })
 
 const discountFormSchema = z.object({

@@ -61,7 +61,7 @@ Challenge de carrito de compras para el stream de Goncy x Wallbit
 
 ## Demo
 
-[Ver demo](https://www.vercel.com)
+[Ver demo](https://wallbit-challenge-pi.vercel.app/)
 
 ## Autor
 
